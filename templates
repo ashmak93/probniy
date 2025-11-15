@@ -141,14 +141,14 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📚 Wikipedia API Client</h1>
+            <h1>Wikipedia API Client</h1>
             <p>Исследуйте мир знаний с помощью Wikipedia API</p>
         </div>
         
         <div class="row">
             <div class="col">
                 <div class="card">
-                    <h2>🔍 Поиск статей</h2>
+                    <h2>Поиск статей</h2>
                     <div class="form-group">
                         <label for="searchQuery">Поисковый запрос:</label>
                         <input type="text" id="searchQuery" placeholder="Введите тему для поиска...">
@@ -168,7 +168,7 @@
             
             <div class="col">
                 <div class="card">
-                    <h2>📖 Получить статью</h2>
+                    <h2>Получить статью</h2>
                     <div class="form-group">
                         <label for="articleTitle">Название статьи:</label>
                         <input type="text" id="articleTitle" placeholder="Введите точное название статьи...">
@@ -178,7 +178,7 @@
                 </div>
                 
                 <div class="card">
-                    <h2>🎲 Случайная статья</h2>
+                    <h2>Случайная статья</h2>
                     <div class="form-group">
                         <label for="randomLanguage">Язык:</label>
                         <select id="randomLanguage">
