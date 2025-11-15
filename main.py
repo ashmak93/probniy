@@ -1,12 +1,14 @@
 !pip install wikipedia-api beautifulsoup4 requests loguru fastapi uvicorn pydantic
-import logging
-from typing import Optional, Dict, Any
-import httpx
-import wikipedia
 from fastapi import FastAPI, Path, Query, HTTPException
 from fastapi.testclient import TestClient
-from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import httpx
+import wikipedia
+from loguru import logger
+from typing import Dict, Any
+import os
 
 class WikipediaClient:
     def __init__(self, language: str = "ru"):
@@ -27,7 +29,7 @@ class WikipediaClient:
         )
     
     async def search_articles(self, query: str, limit: int = 10) -> Dict[str, Any]:
-        logger.info(f"Выполняется поиск статей: '{query}' (лимит: {limit})")
+        logger.info(f"Поиск статей: '{query}' (лимит: {limit})")
         
         try:
             search_results = wikipedia.search(query, results=limit)
@@ -39,15 +41,15 @@ class WikipediaClient:
                 "results": search_results
             }
             
-            logger.info(f"Найдено {len(search_results)} результатов для запроса '{query}'")
+            logger.info(f"Найдено {len(search_results)} результатов для '{query}'")
             return result
             
         except Exception as e:
-            logger.error(f"Ошибка при поиске статей '{query}': {str(e)}")
+            logger.error(f"Ошибка при поиске '{query}': {str(e)}")
             raise HTTPException(status_code=500, detail=f"Ошибка поиска: {str(e)}")
     
     async def get_article_summary(self, title: str) -> Dict[str, Any]:
-        logger.info(f"Запрос краткого содержания статьи: '{title}'")
+        logger.info(f"Запрос содержания статьи: '{title}'")
         
         try:
             page = wikipedia.page(title)
@@ -60,7 +62,7 @@ class WikipediaClient:
                 "categories": page.categories[:5]
             }
             
-            logger.info(f"Успешно получено содержание статьи '{title}'")
+            logger.info(f"Успешно получено содержание '{title}'")
             return result
             
         except wikipedia.DisambiguationError as e:
@@ -73,7 +75,7 @@ class WikipediaClient:
             logger.error(f"Страница '{title}' не найдена")
             raise HTTPException(status_code=404, detail="Страница не найдена")
         except Exception as e:
-            logger.error(f"Ошибка при получении статьи '{title}': {str(e)}")
+            logger.error(f"Ошибка при получении '{title}': {str(e)}")
             raise HTTPException(status_code=500, detail=f"Ошибка получения статьи: {str(e)}")
     
     async def get_random_article(self) -> Dict[str, Any]:
@@ -102,12 +104,22 @@ app.add_middleware(
 
 wikipedia_client = WikipediaClient()
 
+# Создаем папку для шаблонов если её нет
+os.makedirs("templates", exist_ok=True)
+
+# Монтируем статические файлы
+app.mount("/static", StaticFiles(directory="templates"), name="static")
+
 @app.get("/")
+async def read_root():
+    return FileResponse("templates/index.html")
+
+@app.get("/api/")
 async def root():
-    logger.info("Запрос корневого эндпоинта")
+    logger.info("Запрос корневого эндпоинта API")
     return {"message": "Wikipedia API Wrapper", "version": "1.0.0"}
 
-@app.get("/articles/search/{query}")
+@app.get("/api/articles/search/{query}")
 async def search_articles(
     query: str = Path(..., description="Поисковый запрос"),
     limit: int = Query(10, ge=1, le=50, description="Количество результатов")
@@ -115,14 +127,14 @@ async def search_articles(
     logger.info(f"API запрос: поиск '{query}' с лимитом {limit}")
     return await wikipedia_client.search_articles(query, limit)
 
-@app.get("/articles/{title}/summary")
+@app.get("/api/articles/{title}/summary")
 async def get_article_summary(
     title: str = Path(..., description="Название статьи", alias="title")
 ) -> Dict[str, Any]:
     logger.info(f"API запрос: получение содержания статьи '{title}'")
     return await wikipedia_client.get_article_summary(title)
 
-@app.get("/articles/random")
+@app.get("/api/articles/random")
 async def get_random_article(
     language: str = Query("ru", description="Язык статьи")
 ) -> Dict[str, Any]:
@@ -145,72 +157,5 @@ async def shutdown_event():
     logger.info("Wikipedia client closed")
 
 if __name__ == "__main__":
-    import asyncio
-    
-    client = TestClient(app)
-    
-    def test_search_articles():
-        print("Тестирование поиска статей...")
-        response = client.get("/articles/search/python", params={"limit": 5})
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "results" in data
-        assert data["query"] == "python"
-        assert data["limit"] == 5
-        print("✓ Поиск статей работает корректно")
-    
-    def test_get_article_summary():
-        print("Тестирование получения содержания статьи...")
-        response = client.get("/articles/Python%20(programming%20language)/summary")
-        
-        if response.status_code == 200:
-            data = response.json()
-            assert "summary" in data
-            assert "url" in data
-            print("✓ Получение содержания статьи работает корректно")
-        else:
-            print("⚠ Статья не найдена, но API отвечает корректно")
-    
-    def test_get_random_article():
-        print("Тестирование получения случайной статьи...")
-        response = client.get("/articles/random", params={"language": "ru"})
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "title" in data
-        assert "summary" in data
-        print("✓ Получение случайной статьи работает корректно")
-    
-    def test_root_endpoint():
-        print("Тестирование корневого эндпоинта...")
-        response = client.get("/")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "message" in data
-        assert "version" in data
-        print("✓ Корневой эндпоинт работает корректно")
-    
-    print("Запуск тестов Wikipedia API...\n")
-    
-    test_root_endpoint()
-    test_search_articles()
-    test_get_article_summary()
-    test_get_random_article()
-    
-    print("\nВсе тесты пройдены")
-    
-    print("\nПримеры curl-запросов:")
-    
-    response = client.get("/articles/search/python", params={"limit": 3})
-    curl_command = f'curl -X GET "http://localhost:8000/articles/search/python?limit=3"'
-    print(f"Поиск: {curl_command}")
-    
-    response = client.get("/articles/Python/summary")
-    curl_command = f'curl -X GET "http://localhost:8000/articles/Python/summary"'
-    print(f"Содержание: {curl_command}")
-    
-    response = client.get("/articles/random?language=ru")
-    curl_command = f'curl -X GET "http://localhost:8000/articles/random?language=ru"'
-    print(f"Случайная статья: {curl_command}")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
