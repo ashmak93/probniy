@@ -1,3 +1,4 @@
+python main.py
 !pip install wikipedia-api beautifulsoup4 requests loguru fastapi uvicorn pydantic
 from fastapi import FastAPI, Path, Query, HTTPException
 from fastapi.testclient import TestClient
